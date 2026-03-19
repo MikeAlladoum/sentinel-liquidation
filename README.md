@@ -1,151 +1,153 @@
 # Sentinel de Liquidation — Stagenet Hackathon 2026
 
-## 📋 Résumé exécutif
+> **Automated Liquidation Engine for Aave-style Protocols on Stagenet**
 
-Un **moteur de liquidation automatique Aave-style** déployé sur **Stagenet** (fork Ethereum mainnet bloc par bloc). Le contrat surveille des positions ETH/USD collatéralisées, lit le prix en temps réel via l'oracle Chainlink mainnet, et déclenche les liquidations dès que le Health Factor d'une position passe sous 1.0.
+## 📋 Executive Summary
 
-**Stack technique :** Solidity 0.8.20 + Hardhat + Chainlink AggregatorV3 + Stagenet
+An **Aave-style automated liquidation engine** deployed on **Stagenet** (block-by-block Ethereum mainnet fork). The smart contract monitors collateralized ETH/USD positions, reads real-time prices via Chainlink mainnet oracle, and automatically triggers liquidations when a position's Health Factor drops below 1.0.
 
----
-
-## 🎯 Pourquoi Stagenet ?
-
-### Le problème
-
-Valider un moteur de liquidation ne peut **pas** se faire sur :
-- ❌ **Un testnet public** : oracles mockés, liquidité absente, prix figés
-- ❌ **Un fork statique** : pas de données de marché réelles, aucun oracle live
-
-### La solution : Stagenet
-
-Stagenet rejoint **bloc par bloc l'état réel d'Ethereum mainnet**, ce qui signifie :
-- ✅ **Oracles Chainlink live** : le contrat lit les vrais prix ETH/USD du mainnet
-- ✅ **Données de marché authentiques** : conditions réelles de volatilité et de liquidité
-- ✅ **Simulation de masse** : exécution de 500+ transactions sur historique réel
-- ✅ **Dashboard temps réel** : métriques d'health factor, liquidations, TVL
-
-Ce projet démontre exactement pourquoi le Stagenet est indispensable pour valider des contrats critiques de gestion de risque.
+**Tech Stack:** Solidity 0.8.20 + Hardhat + Chainlink AggregatorV3 + Stagenet
 
 ---
 
-## 🔧 Architecture technique
+## 🎯 Why Stagenet?
+
+### The Problem
+
+Validating a liquidation engine **cannot** be done on:
+- ❌ **Public testnet**: mocked oracles, no liquidity, frozen prices
+- ❌ **Static fork**: no real market data, no live oracle
+
+### The Solution: Stagenet
+
+Stagenet replays **block-by-block the real state of Ethereum mainnet**, which means:
+- ✅ **Live Chainlink Oracles**: contract reads actual mainnet ETH/USD prices
+- ✅ **Authentic Market Data**: real-world volatility and liquidity conditions
+- ✅ **Mass Simulation**: execution of 500+ transactions on real history
+- ✅ **Real-time Dashboard**: health factor metrics, liquidations, TVL
+
+This project demonstrates exactly why Stagenet is essential for validating critical risk-management smart contracts.
+
+---
+
+## 🔧 Technical Architecture
 
 ```
 sentinel-liquidation/
 ├── contracts/
-│   └── LiquidationSentinel.sol      (Contrat principal)
+│   └── LiquidationSentinel.sol      (Main contract)
 ├── scripts/
-│   ├── deploy.js                    (Déploiement sur Stagenet)
-│   └── simulate.js                  (Simulation crash + liquidations)
-├── hardhat.config.cjs               (Config Hardhat)
-├── deploy.js                        (Point d'entrée déploiement)
-├── simulate.js                      (Point d'entrée simulation)
+│   ├── deploy.js                    (Stagenet deployment)
+│   └── simulate.js                  (Crash simulation + liquidations)
+├── hardhat.config.cjs               (Hardhat configuration)
+├── deploy.js                        (Deployment entry point)
+├── simulate.js                      (Simulation entry point)
 ├── package.json
 └── README.md
 ```
 
-### Stack technique
+### Tech Stack
 
-| Composant | Détail |
+| Component | Detail |
 |-----------|--------|
-| **Langage contrat** | Solidity 0.8.20 avec optimiseur activé |
-| **Framework dev** | Hardhat 2.28.6 avec hardhat-toolbox |
-| **Oracle de prix** | Chainlink AggregatorV3Interface — ETH/USD mainnet |
-| **Réseau cible** | Stagenet (fork Ethereum mainnet bloc par bloc) |
-| **Scripts** | JavaScript (Node.js) via Hardhat Runtime Environment |
-| **Sécurité** | @openzeppelin/contracts |
+| **Contract Language** | Solidity 0.8.20 with optimizer enabled |
+| **Dev Framework** | Hardhat 2.28.6 with hardhat-toolbox |
+| **Price Oracle** | Chainlink AggregatorV3Interface — ETH/USD mainnet |
+| **Target Network** | Stagenet (block-by-block Ethereum mainnet fork) |
+| **Automation Scripts** | JavaScript (Node.js) via Hardhat Runtime Environment |
+| **Security** | @openzeppelin/contracts |
 
 ---
 
-## 📊 Spécification fonctionnelle
+## 📊 Functional Specification
 
-### Flux principal
+### Main Flow
 
-1. **Ouverture de position** (`openPosition(debtUSD, liquidationThreshold)`)
-   - L'utilisateur dépose du collatéral ETH
-   - Déclare une dette en USD (6 décimales)
-   - Définit un seuil de liquidation (ex: 80%, 75%, 70%)
+1. **Position Opening** (`openPosition(debtUSD, liquidationThreshold)`)
+   - User deposits ETH collateral
+   - Declares USD debt (6 decimals)
+   - Sets liquidation threshold (e.g., 80%, 75%, 70%)
 
-2. **Health Factor** (calculé à chaque appel)
+2. **Health Factor** (calculated on every call)
    ```
    HF = (collateralETH × ethPriceUSD × liquidationThreshold) / (debtUSD × 10_000)
    ```
-   - **HF ≥ 1.0** → position saine
-   - **HF < 1.0** → position liquidable immédiatement
+   - **HF ≥ 1.0** → position healthy
+   - **HF < 1.0** → position immediately liquidatable
 
 3. **Liquidation** (`liquidate(userAddress)`)
-   - N'importe qui peut appeler pour liquider une position sous-collatéralisée
-   - Le liquidateur reçoit le collatéral ETH + **bonus de 5%** en récompense
-   - La position est marquée comme liquidée
+   - Anyone can trigger liquidation of under-collateralized positions
+   - Liquidator receives collateral ETH + **5% bonus** reward
+   - Position marked as liquidated
 
-4. **Scanning global** (`getLiquidatablePositions()`)
-   - Retourne toutes les positions actuellement liquidables
-   - Utilisé par le script de simulation pour orchestrer les liquidations en cascade
+4. **Global Scanning** (`getLiquidatablePositions()`)
+   - Returns all currently liquidatable positions
+   - Used by simulation script to orchestrate cascading liquidations
 
 ---
 
-## 🚀 Configuration et déploiement
+## 🚀 Setup & Deployment
 
-### Prérequis
+### Prerequisites
 
 ```bash
 npm install
 ```
 
-### Étape 1 : Créer un Stagenet
+### Step 1: Create a Stagenet
 
-1. Aller sur [contract.dev](https://contract.dev) et créer un compte
-2. Cliquer sur **"New Stagenet"**
-3. Choisir **Ethereum mainnet** comme source
-4. Sélectionner un bloc récent
-5. Récupérer l'URL RPC et le Chain ID
+1. Go to [contract.dev](https://contract.dev) and create an account
+2. Click **"New Stagenet"**
+3. Choose **Ethereum mainnet** as source
+4. Select a recent block
+5. Get the RPC URL and Chain ID
 
-### Étape 2 : Configurer le projet
+### Step 2: Configure the Project
 
-Créer un fichier `.env` (voir `.env.example`) :
+Create a `.env` file (see `.env.example`):
 
 ```bash
-STAGENET_RPC_URL=https://your-stagenet-url-here
+STAGENET_RPC_URL=https://your-stagenet-rpc-url-here
 STAGENET_CHAIN_ID=1
 PRIVATE_KEY=your_private_key_here
 ```
 
-Valider la connexion :
+Validate the connection:
 ```bash
 npx hardhat console --network stagenet
 ```
 
-### Étape 3 : Déployer le contrat
+### Step 3: Deploy the Contract
 
 ```bash
 STAGENET_RPC_URL="your-rpc-url" PRIVATE_KEY="your-key" npx hardhat run deploy.js --network stagenet
 ```
 
-Récupérez l'adresse du contrat dans l'output.
+Get the contract address from the output.
 
-### Étape 4 : Lancer la simulation
+### Step 4: Run the Simulation
 
 ```bash
 SENTINEL_ADDRESS="0x..." npx hardhat run simulate.js --network stagenet
 ```
 
-**Déroulement** :
-1. **PHASE 1** : Ouverture de 5 positions avec profils de risque différents
-2. **PHASE 2** : Simulation crash ETH de 2000$ → 900$
-3. **PHASE 3** : Cascade de liquidations automatiques
-4. **RAPPORT FINAL** : Métriques d'exécution
+**Execution Flow**:
+1. **PHASE 1**: Open 5 positions with different risk profiles
+2. **PHASE 2**: Simulate ETH crash from $2000 → $900
+3. **PHASE 3**: Cascading auto-liquidations triggered
+4. **FINAL REPORT**: Execution metrics
 
 ---
 
-## 🛡️ Sécurité et validation
+## 🛡️ Security & Validation
 
-### Mécanismes de protection
+### Protection Mechanisms
 
-- ✅ Vérification staleness oracle (< 3600s)
+- ✅ Oracle staleness verification (< 3600s)
 - ✅ Solidity 0.8.20 (checked arithmetic)
-- ✅ Pattern CEI (Checks-Effects-Interactions)
-- ✅ Custom errors pour gestion d'erreurs optimisée
-- ✅ Flag `isLiquidated` pour éviter les double-liquidations
+- ✅ CEI Pattern (Checks-Effects-Interactions)
+- ✅ Custom errors for optimized error handling
+- ✅ `isLiquidated` flag prevents double-liquidations
 
 ### Custom Errors (EIP-6093)
 
@@ -161,16 +163,16 @@ error OracleStalePrice(uint256 updatedAt);
 
 ---
 
-## 📚 Références
+## 📚 References
 
-- **Chainlink Oracle** : `0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419` (ETH/USD mainnet)
-- **Stagenet** : https://contract.dev
-- **Aave Protocol** : https://aave.com/protocol/
-- **Hardhat Documentation** : https://hardhat.org
+- **Chainlink Oracle**: `0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419` (ETH/USD mainnet)
+- **Stagenet**: https://contract.dev
+- **Aave Protocol**: https://aave.com/protocol/
+- **Hardhat Documentation**: https://hardhat.org
 
 ---
 
-**Hackathon Stagenet 2026** | Sentinel de Liquidation | Février-Mars 2026
+**Stagenet Hackathon 2026** | Sentinel de Liquidation | February-March 2026
 
 ## Résumé
 
