@@ -123,6 +123,39 @@ npx hardhat console --network stagenet
 STAGENET_RPC_URL="your-rpc-url" PRIVATE_KEY="your-key" npx hardhat run deploy.js --network stagenet
 ```
 
+---
+
+## Deployed Contracts
+
+**Stagenet Mainnet Fork — Production**
+
+| Component | Address |
+|-----------|---------|
+| **LiquidationSentinel** | `0xC8CDc32e6b995fed3fE2fCD810ED8fFF97aBd509` |
+| **Chainlink ETH/USD Oracle** | `0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419` |
+
+**Deployment Details**
+- Deployed by: `0x5b0E4eCEfd39e3c491728Aa8af5b49a83caD94B4`
+- Oracle Read: Live mainnet Chainlink prices
+- Liquidator Bonus: 5% (500 basis points)
+- Health Factor Formula: `(collateral × price × threshold) / (debt × 10,000)`
+
+---
+
+## Testing & Simulation
+
+Run the liquidation cascade simulation:
+
+```bash
+SENTINEL_ADDRESS="0xC8CDc32e6b995fed3fE2fCD810ED8fFF97aBd509" npx hardhat run simulate.js --network stagenet
+```
+
+The simulation simulates:
+1. **5 test positions** with different risk profiles (Conservative 80% → Tiny 85%)
+2. **ETH price crash** simulation: 2000$ → 1800$ → 1500$ → 1200$ → 900$
+3. **Automatic liquidations** when Health Factor < 1.0
+4. **Final metrics**: Total positions, liquidations triggered, cascade analysis
+
 Get the contract address from the output.
 
 ### Step 4: Run the Simulation

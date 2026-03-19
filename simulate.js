@@ -6,6 +6,7 @@
 //  4. Un rapport final des métriques
 
 const hre = require("hardhat");
+const { ethers } = hre;
 
 // ── Config ──────────────────────────────────────────────────
 
@@ -39,7 +40,7 @@ function formatHF(hfBigInt) {
 }
 
 function formatETH(wei) {
-  return hre.ethers.formatEther(wei);
+  return ethers.utils.formatEther(wei);
 }
 
 // Manipule le slot de stockage de l'oracle Chainlink sur le Stagenet
@@ -52,10 +53,11 @@ async function overrideOraclePrice(priceUSD) {
   // On utilise hardhat_setStorageAt pour forcer un nouveau prix
   // Slot 1 du contrat Chainlink = latestAnswer (simplifié pour la démo)
   // En production Stagenet, utiliser l'API de manipulation de storage dédiée
+  const hexPrice = "0x" + priceWith8Dec.toString(16).padStart(64, "0");
   await hre.network.provider.send("hardhat_setStorageAt", [
     CHAINLINK_ETH_USD,
     "0x1", // slot approximatif de latestAnswer
-    hre.ethers.zeroPadValue(hre.ethers.toBeHex(priceWith8Dec), 32),
+    hexPrice,
   ]);
 
   // Avancer d'un bloc pour que le timestamp soit à jour
@@ -65,14 +67,14 @@ async function overrideOraclePrice(priceUSD) {
 // ── Main ─────────────────────────────────────────────────────
 
 async function main() {
-  const signers = await hre.ethers.getSigners();
+  const signers = await ethers.getSigners();
   const [deployer, ...users] = signers;
 
   console.log("\n========================================");
   console.log("  SENTINEL DE LIQUIDATION — Simulation");
   console.log("========================================\n");
 
-  const Sentinel = await hre.ethers.getContractAt(
+  const Sentinel = await ethers.getContractAt(
     "LiquidationSentinel",
     SENTINEL_ADDRESS
   );
@@ -86,16 +88,16 @@ async function main() {
     const user = users[i] || deployer;
 
     // Alimenter le user avec de l'ETH si nécessaire (Stagenet faucet auto)
-    const balance = await hre.ethers.provider.getBalance(user.address);
-    if (balance < hre.ethers.parseEther("2")) {
+    const balance = await ethers.provider.getBalance(user.address);
+    if (balance < ethers.utils.parseEther("2")) {
       await hre.network.provider.send("hardhat_setBalance", [
         user.address,
-        hre.ethers.toBeHex(hre.ethers.parseEther("10")),
+        ethers.utils.toBeHex(ethers.utils.parseEther("10")),
       ]);
     }
 
     const sentinel = Sentinel.connect(user);
-    const collateral = hre.ethers.parseEther(cfg.eth);
+    const collateral = ethers.utils.parseEther(cfg.eth);
 
     try {
       const tx = await sentinel.openPosition(

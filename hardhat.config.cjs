@@ -16,7 +16,7 @@ module.exports = {
     stagenet: {
       url: process.env.STAGENET_RPC_URL || "",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: parseInt(process.env.STAGENET_CHAIN_ID || "1"),
+      chainId: 14932,
     },
   },
 };
