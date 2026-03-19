@@ -68,7 +68,7 @@ async function overrideOraclePrice(priceUSD) {
 
 async function main() {
   const signers = await ethers.getSigners();
-  const [deployer, ...users] = signers;
+  const [deployer] = signers;
 
   console.log("\n========================================");
   console.log("  SENTINEL DE LIQUIDATION — Simulation");
@@ -85,18 +85,8 @@ async function main() {
 
   for (let i = 0; i < POSITIONS.length; i++) {
     const cfg = POSITIONS[i];
-    const user = users[i] || deployer;
 
-    // Alimenter le user avec de l'ETH si nécessaire (Stagenet faucet auto)
-    const balance = await ethers.provider.getBalance(user.address);
-    if (balance < ethers.utils.parseEther("2")) {
-      await hre.network.provider.send("hardhat_setBalance", [
-        user.address,
-        ethers.utils.toBeHex(ethers.utils.parseEther("10")),
-      ]);
-    }
-
-    const sentinel = Sentinel.connect(user);
+    const sentinel = Sentinel;  // deployer es le signer par défaut
     const collateral = ethers.utils.parseEther(cfg.eth);
 
     try {
@@ -107,9 +97,9 @@ async function main() {
       );
       await tx.wait();
 
-      const [hf] = await sentinel.getHealthFactor(user.address);
+      const [hf] = await sentinel.getHealthFactor(deployer.address);
       console.log(`  [${cfg.label}]`);
-      console.log(`    User: ${user.address.slice(0, 10)}...`);
+      console.log(`    User: ${deployer.address.slice(0, 10)}...`);
       console.log(`    Collatéral: ${cfg.eth} ETH | Dette: ${cfg.debtUSD / 1e6}$`);
       console.log(`    Health Factor: ${formatHF(hf)}\n`);
     } catch (e) {
@@ -132,62 +122,60 @@ async function main() {
     // Override le prix oracle sur le Stagenet
     await overrideOraclePrice(step.priceUSD);
 
-    // Scanner toutes les positions
+    // Scanner toutes les positions (dans cette démo, une seule pour deployer)
     let liquidatableCount = 0;
     const stepData = { price: step.priceUSD, label: step.label, positions: [] };
 
-    for (let i = 0; i < POSITIONS.length; i++) {
-      const user = users[i] || deployer;
-      const pos = await Sentinel.positions(user.address);
-      if (pos.isLiquidated) {
-        stepData.positions.push({ label: POSITIONS[i].label, status: "LIQUIDÉE", hf: 0 });
-        continue;
-      }
+    // Vérifier la position du deployer
+    const pos = await Sentinel.positions(deployer.address);
+    if (!pos.exists) {
+      console.log(`  (Aucune position actuellement)\n`);
+      continue;
+    }
 
-      try {
-        const [hf] = await Sentinel.getHealthFactor(user.address);
-        const hfNum = Number(hf) / 1e18;
-        const status = hfNum < 1 ? "LIQUIDABLE" : "saine";
-        stepData.positions.push({ label: POSITIONS[i].label, status, hf: hfNum });
-        if (hfNum < 1) liquidatableCount++;
-        console.log(`  ${POSITIONS[i].label}: HF=${hfNum.toFixed(3)} [${status}]`);
-      } catch (e) {
-        console.log(`  Erreur HF pour ${POSITIONS[i].label}: ${e.message}`);
-      }
+    if (pos.isLiquidated) {
+      console.log(`  Position: LIQUIDÉE\n`);
+      stepData.positions.push({ label: "Position Deployer", status: "LIQUIDÉE", hf: 0 });
+      continue;
+    }
+
+    try {
+      const [hf] = await Sentinel.getHealthFactor(deployer.address);
+      const hfNum = Number(hf) / 1e18;
+      const status = hfNum < 1 ? "LIQUIDABLE" : "saine";
+      stepData.positions.push({ label: "Position", status, hf: hfNum });
+      if (hfNum < 1) liquidatableCount++;
+      console.log(`  Position: HF=${hfNum.toFixed(3)} [${status}]\n`);
+    } catch (e) {
+      console.log(`  Erreur HF: ${e.message}\n`);
     }
 
     // ── PHASE 3 : Déclencher les liquidations automatiques
 
     if (liquidatableCount > 0) {
-      console.log(`\n  → ${liquidatableCount} position(s) liquidable(s) détectée(s)`);
-      console.log("  → Déclenchement des liquidations...\n");
+      console.log(`  → Position liquidable détectée`);
+      console.log("  → Déclenchement de la liquidation...\n");
 
-      for (let i = 0; i < POSITIONS.length; i++) {
-        const user = users[i] || deployer;
-        const pos = await Sentinel.positions(user.address);
-        if (pos.isLiquidated) continue;
+      try {
+        const [hf] = await Sentinel.getHealthFactor(deployer.address);
+        if (hf < BigInt(1e18)) {
+          const tx = await Sentinel.connect(deployer).liquidate(deployer.address);
+          const receipt = await tx.wait();
 
-        try {
-          const [hf] = await Sentinel.getHealthFactor(user.address);
-          if (hf < BigInt(1e18)) {
-            const tx = await Sentinel.connect(deployer).liquidate(user.address);
-            const receipt = await tx.wait();
-
-            // Trouver l'event LiquidationTriggered
-            const event = receipt.logs.find(
-              (l) => l.topics[0] === Sentinel.interface.getEvent("LiquidationTriggered").topicHash
-            );
-            if (event) {
-              const decoded = Sentinel.interface.decodeEventLog("LiquidationTriggered", event.data, event.topics);
-              console.log(`  LIQUIDATION: ${POSITIONS[i].label}`);
-              console.log(`    Collatéral saisi: ${formatETH(decoded.collateralSeized)} ETH`);
-              console.log(`    Dette remboursée: ${Number(decoded.debtRepaid) / 1e6}$`);
-              console.log(`    Prix ETH: ${Number(decoded.ethPriceAtLiquidation) / 1e8}$\n`);
-            }
+          // Trouver l'event LiquidationTriggered
+          const event = receipt.logs.find(
+            (l) => l.topics[0] === Sentinel.interface.getEvent("LiquidationTriggered").topicHash
+          );
+          if (event) {
+            const decoded = Sentinel.interface.decodeEventLog("LiquidationTriggered", event.data, event.topics);
+            console.log(`  LIQUIDATION effectuée:`);
+            console.log(`    Collatéral saisi: ${formatETH(decoded.collateralSeized)} ETH`);
+            console.log(`    Dette remboursée: ${Number(decoded.debtRepaid) / 1e6}$`);
+            console.log(`    Prix ETH: ${Number(decoded.ethPriceAtLiquidation) / 1e8}$\n`);
           }
-        } catch (e) {
-          // Position déjà liquidée ou encore saine
         }
+      } catch (e) {
+        console.log(`  Erreur liquidation: ${e.message}\n`);
       }
     }
 
@@ -207,11 +195,8 @@ async function main() {
   console.log(`Taux de liquidation       : ${(Number(totalLiquidations) / Number(totalPositions) * 100).toFixed(1)}%`);
 
   console.log("\nRécapitulatif par position:");
-  for (let i = 0; i < POSITIONS.length; i++) {
-    const user = users[i] || deployer;
-    const pos = await Sentinel.positions(user.address);
-    console.log(`  ${POSITIONS[i].label}: ${pos.isLiquidated ? "LIQUIDÉE" : "active"}`);
-  }
+  const finalPos = await Sentinel.positions(deployer.address);
+  console.log(`  Position Deployer: ${finalPos.isLiquidated ? "LIQUIDÉE" : "active"}`);
 
   console.log("\nSimulation terminée. Consultez le dashboard Stagenet pour les analytics.");
 }

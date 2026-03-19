@@ -96,10 +96,12 @@ contract LiquidationSentinel {
     /// @param debtUSD montant emprunté en USD avec 6 décimales (ex: 1000e6 = 1000$)
     /// @param liquidationThreshold seuil en bps (ex: 8000 = 80%)
     function openPosition(uint256 debtUSD, uint256 liquidationThreshold) external payable {
-        if (positions[msg.sender].exists)   revert PositionAlreadyExists();
         if (msg.value == 0)                 revert InvalidCollateral();
         if (debtUSD == 0)                   revert InvalidDebt();
 
+        // Créer ou remplacer la position
+        bool isNew = !positions[msg.sender].exists;
+        
         positions[msg.sender] = Position({
             owner:                msg.sender,
             collateralETH:        msg.value,
@@ -109,7 +111,9 @@ contract LiquidationSentinel {
             exists:               true
         });
 
-        positionOwners.push(msg.sender);
+        if (isNew) {
+            positionOwners.push(msg.sender);
+        }
 
         emit PositionOpened(msg.sender, msg.value, debtUSD, liquidationThreshold);
     }

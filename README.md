@@ -131,7 +131,7 @@ STAGENET_RPC_URL="your-rpc-url" PRIVATE_KEY="your-key" npx hardhat run deploy.js
 
 | Component | Address |
 |-----------|---------|
-| **LiquidationSentinel** | `0xC8CDc32e6b995fed3fE2fCD810ED8fFF97aBd509` |
+| **LiquidationSentinel** | `0x230162A10B5bc72743abDdA4f6E91E01eF5b0d0E` |
 | **Chainlink ETH/USD Oracle** | `0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419` |
 
 **Deployment Details**
@@ -147,7 +147,7 @@ STAGENET_RPC_URL="your-rpc-url" PRIVATE_KEY="your-key" npx hardhat run deploy.js
 Run the liquidation cascade simulation:
 
 ```bash
-SENTINEL_ADDRESS="0xC8CDc32e6b995fed3fE2fCD810ED8fFF97aBd509" npx hardhat run simulate.js --network stagenet
+SENTINEL_ADDRESS="0x230162A10B5bc72743abDdA4f6E91E01eF5b0d0E" npx hardhat run simulate.js --network stagenet
 ```
 
 The simulation simulates:
